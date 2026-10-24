@@ -1,16 +1,23 @@
 name: Update world headlines
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 concurrency:
-  group: news-update
+  group: pages
   cancel-in-progress: false
 jobs:
-  collect:
+  publish:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,12 +25,14 @@ jobs:
           python-version: '3.12'
       - name: Collect RSS headlines
         run: python 1024/update_news.py
-      - name: Commit updated headlines
+      - uses: actions/configure-pages@v5
+      - name: Prepare public files
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add 1024/news.json
-          if ! git diff --cached --quiet; then
-            git commit -m 'Update news headlines'
-            git push
-          fi
+          mkdir -p public/1024
+          cp 1024/index.html 1024/style.css 1024/app.js 1024/news.json public/1024/
+          printf '<!doctype html><meta http-equiv="refresh" content="0;url=./1024/"><a href="./1024/">지구 한 장</a>' > public/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - uses: actions/deploy-pages@v4
+        id: deployment
